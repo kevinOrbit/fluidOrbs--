@@ -3,9 +3,10 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>流体光感生成器 v5.1 (移动端交互版)</title>
-  <script src="https://cdn.tailwindcss.com"></script>
-
+<title>流体光感生成器-@Kaimana</title>
+<script src="https://cdn.tailwindcss.com"></script>
+    <!-- 引入截图库 html2canvas -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 <style>
     :root {
         --bg-color: #f5f5f7;
@@ -139,7 +140,21 @@
         0% { transform: rotate(0deg); } 
         100% { transform: rotate(360deg); } 
     }
+    /* === 新增：呼吸动画 === */
+    /* 使用 scale 属性而非 transform，避免冲突 */
+    @keyframes breathe {
+        0%, 100% { scale: 1; }
+        50% { scale: 1.08; } /* 呼吸幅度：1.0 -> 1.08 -> 1.0 */
+    }
 
+    /* 定义呼吸变量：默认 'none' (不呼吸) */
+    :root {
+        --breath-anim-name: none;
+    }
+    /* 当 Grid 被激活呼吸模式时，变量变为动画名 */
+    .grid.breath-active {
+        --breath-anim-name: breathe;
+    }
     /* === 控制面板 (基础样式) === */
     .controls {
         position: fixed;
@@ -176,7 +191,7 @@
             max-width: 100%;
             width: 100%;
             border-radius: 28px 28px 0 0;
-            padding: 0 24px 0px 24px; /* 底部增加 padding 适配 iPhone Home 条 */
+            padding: 0 24px 3px 24px; /* 底部增加 padding 适配 iPhone Home 条 */
             border: none;
             border-top: 1px solid rgba(255,255,255,0.2);
             
@@ -352,7 +367,11 @@
         <label>色彩偏差</label>
         <input type="range" id="varianceRange" min="0" max="100" value="55">
     </div>
-
+    <!-- 【新增功能 1】：数量控制 -->
+    <div class="control-item">
+        <label>球体数量 <span id="countVal" style="font-family:monospace; margin-left:5px; opacity:0.6;">12</span></label>
+        <input type="range" id="countRange" min="4" max="16" value="6">
+    </div>
     <!-- 3. 大小控制 -->
     <div class="control-item">
         <label>大小 <span id="sizeVal" style="font-family:monospace; margin-left:5px; opacity:0.6;">115px</span></label>
@@ -360,7 +379,7 @@
     </div>
 
     <!-- 4. 开关组 -->
-    <div class="toggle-group">
+    <div class="toggle-group" style="display:flex; justify-content:space-between; width:100%;"  >
         <label class="toggle-switch">
             <input type="checkbox" id="diffusionToggle">
             弥散模式
@@ -369,9 +388,20 @@
             <input type="checkbox" id="darkModeToggle">
             深色背景
         </label>
+        <!-- 新增：呼吸开关 -->
+        <label class="toggle-switch">
+            <input type="checkbox" id="breathToggle">
+            呼吸效果
+        </label>
     </div>
 
-    <button onclick="regenerate()">✨ 重新生成</button>
+    <button onclick="regenerate()" style="border-bottom:1px solid var(--text-color); color:var(--text-color); margin-top:0px;" >✨ 重新生成</button>
+        <!-- 【新增功能 2】：导出按钮 (样式设为透明边框，以示区分) -->
+    <!-- <button onclick="exportImage()" style="border-bottom:1px solid var(--text-color); color:var(--text-color); margin-top:0px;" >
+        📷 导出图片
+    </button> -->
+        <!-- style="background:transparent; border:2px solid var(--text-color); color:var(--text-color); margin-top:0px;" -->
+
 </div>
 
 <!-- 遮罩层 (移动端展开时显示) -->
@@ -569,21 +599,40 @@ function renderAll() {
     const hueVariance = parseInt(document.querySelector("#varianceRange").value);
     const size = document.querySelector("#sizeRange").value;
     
+        // 【新增】：获取数量滑块的值
+    const count = parseInt(document.querySelector("#countRange").value);
+        // 更新数量显示的文字
+    document.querySelector("#countVal").textContent = count;
+
     document.querySelector("#grid").style.setProperty('--blob-size', size + 'px');
     document.querySelector("#sizeVal").textContent = size + 'px';
 
     const grid = document.querySelector("#grid");
     grid.innerHTML = "";
     
-    for(let i=0; i<12; i++){
+    for(let i=0; i<count; i++){
         const div = document.createElement("div");
         div.className = "blob";
         const bgStyle = generateBlobGradient(baseH1, baseH2, useDual, hueVariance);
         div.style.background = bgStyle;
         div.onclick = () => copyToClipboard(div, bgStyle);
 
+        /*
         const spinTime = rr(5, 15) + 's';
         div.style.animation = `spin ${spinTime} linear infinite`;
+        grid.appendChild(div); 
+        */
+
+        /* === 修改开始：同时应用旋转和呼吸 === */
+        const spinTime = rr(5, 15) + 's';      // 旋转周期 (5-15秒)
+        const breathTime = rr(3, 7) + 's';     // 呼吸周期 (3-7秒，随机速度)
+        // 关键点：
+        // 1. spin: 始终运行
+        // 2. var(--breath-anim-name): 由 CSS 类控制是否为 'breathe' 或 'none'
+        // 3. ease-in-out: 模拟生物呼吸的柔和感
+        div.style.animation = `spin ${spinTime} linear infinite, var(--breath-anim-name) ${breathTime} ease-in-out infinite`;
+        /* === 修改结束 === */
+
         grid.appendChild(div);
     }
 }
@@ -604,6 +653,13 @@ document.querySelector("#dualColorToggle").addEventListener("change", (e) => {
 document.querySelector("#colorPicker1").addEventListener("change", renderAll);
 document.querySelector("#colorPicker2").addEventListener("change", renderAll);
 document.querySelector("#varianceRange").addEventListener("change", renderAll);
+
+/* === 【新增】：监听数量滑块 === */
+document.querySelector("#countRange").addEventListener("input", (e) => {
+    // 实时更新数字显示
+    document.querySelector("#countVal").textContent = e.target.value;
+});
+document.querySelector("#countRange").addEventListener("change", renderAll); // 松手后重新生成
 document.querySelector("#sizeRange").addEventListener("input", (e) => {
     document.querySelector("#sizeVal").textContent = e.target.value + 'px';
     document.querySelector("#grid").style.setProperty('--blob-size', e.target.value + 'px');
@@ -619,14 +675,52 @@ document.querySelector("#darkModeToggle").addEventListener("change", (e) => {
     if(e.target.checked) document.body.classList.add("dark-mode");
     else document.body.classList.remove("dark-mode");
 });
+/* === 新增：呼吸开关监听 === */
+document.querySelector("#breathToggle").addEventListener("change", (e) => {
+    const grid = document.querySelector("#grid");
+    if(e.target.checked) grid.classList.add("breath-active");
+    else grid.classList.remove("breath-active");
+});
 
 function regenerate(){ renderAll(); }
 
+/* === 【新增】：导出图片功能 === */
+function exportImage() {
+    const grid = document.querySelector("#grid");
+    const toast = document.getElementById("toast");
+
+    // 提示开始导出
+    toast.textContent = "⏳ 正在生成图片...";
+    toast.classList.add("show");
+
+    // 获取当前背景色（确保导出的图片背景不是透明的，而是跟当前深色/浅色模式一致）
+    const computedStyle = getComputedStyle(document.body);
+    const bgColor = computedStyle.backgroundColor;
+
+    html2canvas(grid, {
+        backgroundColor: bgColor, // 强制设置背景色
+        scale: 2,                 // 2倍清晰度，防止视网膜屏模糊
+        useCORS: true,            // 允许跨域（虽然这里是生成图片，加上保险）
+        logging: false            // 关闭日志
+    }).then(canvas => {
+        // 创建下载链接
+        const link = document.createElement('a');
+        link.download = 'Fluid-Orbs-' + Date.now() + '.png';
+        link.href = canvas.toDataURL("image/png");
+        link.click();
+
+        // 提示成功
+        toast.textContent = "✅ 图片已下载";
+        setTimeout(() => toast.classList.remove("show"), 2000);
+    }).catch(err => {
+        console.error(err);
+        toast.textContent = "❌ 导出失败";
+        setTimeout(() => toast.classList.remove("show"), 2000);
+    });
+}
 // 初始化
 renderAll();
 
 </script>
 </body>
-
 </html>
-
