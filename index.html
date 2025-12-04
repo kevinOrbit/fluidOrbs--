@@ -624,8 +624,8 @@ function renderAll() {
         */
 
         /* === 修改开始：同时应用旋转和呼吸 === */
-        const spinTime = rr(5, 15) + 's';      // 旋转周期 (5-15秒)
-        const breathTime = rr(3, 7) + 's';     // 呼吸周期 (3-7秒，随机速度)
+        const spinTime = rr(5, 10) + 's';      // 旋转周期 (5-15秒)
+        const breathTime = rr(3, 10) + 's';     // 呼吸周期 (3-7秒，随机速度)
         // 关键点：
         // 1. spin: 始终运行
         // 2. var(--breath-anim-name): 由 CSS 类控制是否为 'breathe' 或 'none'
@@ -724,3 +724,4 @@ renderAll();
 </script>
 </body>
 </html>
+
